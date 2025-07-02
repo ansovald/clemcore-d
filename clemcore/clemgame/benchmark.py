@@ -1,4 +1,5 @@
 import glob
+import hashlib
 import importlib.util
 import inspect
 import logging
@@ -9,15 +10,15 @@ from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, ContextManager, Tuple
+from typing import List, Dict, ContextManager, Tuple, Callable
 from tqdm import tqdm
 
 from clemcore import backends
 from clemcore.clemgame.master import GameMaster
 from clemcore.clemgame.metrics import GameScorer
-from clemcore.clemgame.recorder import GameRecorder, DefaultGameRecorder
+from clemcore.clemgame.recorder import DefaultGameRecorder
 from clemcore.clemgame.registry import GameSpec
-from clemcore.clemgame.resources import GameResourceLocator, store_results_file, load_json
+from clemcore.clemgame.resources import GameResourceLocator, store_results_file, load_json, store_json
 
 module_logger = logging.getLogger(__name__)
 stdout_logger = logging.getLogger("clemcore.run")
@@ -62,6 +63,22 @@ class GameInstanceIterator:
         return self
 
 
+def to_model_results_folder(player_models: List[backends.Model]):
+    def to_descriptor(model: backends.Model):
+        return f"{model.name}-t{model.temperature}"
+
+    model_descriptors = [to_descriptor(m) for m in player_models]
+    folder_name = "--".join(model_descriptors)
+    if len(player_models) <= 2:
+        return folder_name
+    _hash = hashlib.sha1(folder_name.encode()).hexdigest()[:8]
+    return f"group-{len(player_models)}p-{_hash}"
+
+
+def to_player_model_infos(player_models: List[backends.Model]):
+    return {idx: m.model_spec.to_dict() for idx, m in enumerate(player_models)}
+
+
 class GameBenchmark(GameResourceLocator):
     """Organizes the run of a particular collection of game instances which compose a benchmark for the game.
     Supports different experiment conditions for games.
@@ -72,20 +89,19 @@ class GameBenchmark(GameResourceLocator):
         Args:
             game_spec: The name of the game (as specified in game_registry)
         """
-        super().__init__(game_spec["game_name"], game_spec["game_path"])
+        super().__init__(game_spec.game_name, game_spec.game_path)
         self.game_spec = game_spec
         self.instances = None
         self.filter_experiment: List[str] = []
-        self.is_single_player = True if game_spec["players"] == "one" else False
 
-    def setup(self, instances_name: str = None):
+    def setup(self, instances_filename: str = None):
         """Set up a benchmark run of a clemgame.
         Args:
-            instances_name: Name of the instances JSON file to be used for the benchmark run.
+            instances_filename: Name of the instances JSON file to be used for the benchmark run.
         """
-        if instances_name:
-            self.instances = self.load_instances(instances_name)
-        elif hasattr(self.game_spec, 'instances'):
+        if instances_filename:
+            self.instances = self.load_instances(instances_filename)
+        elif hasattr(self.game_spec, "instances"):
             self.instances = self.load_instances(self.game_spec.instances)
         else:
             self.instances = self.load_instances("instances")  # fallback to instances.json default
@@ -127,7 +143,8 @@ class GameBenchmark(GameResourceLocator):
             stdout_logger.error(
                 f"{self.game_name}: '{error_count}' exceptions occurred: See clembench.log for details.")
 
-    def run(self, player_models: List[backends.Model], results_dir: str):
+    def run(self, player_models: List[backends.Model], results_dir: str,
+            task_selector: Callable[[str, str], List[int]] = None):
         """Runs game-play on all game instances for a game.
         There must be an instances.json with the following structure:
         "experiments": [ # this is required
@@ -160,116 +177,77 @@ class GameBenchmark(GameResourceLocator):
         experiments: List = self.instances["experiments"]
         if not experiments:
             module_logger.warning(f"{self.game_name}: No experiments for %s", self.game_name)
+            return
+        player_models_folder = to_model_results_folder(player_models)
+        player_models_infos = to_player_model_infos(player_models)
+        store_json(player_models_infos, "player_models.json", os.path.join(results_dir, player_models_folder))
         total_experiments = len(experiments)
         for experiment_idx, experiment in enumerate(experiments):
             experiment_name = experiment['name']
             if self.filter_experiment and experiment_name not in self.filter_experiment:
-                stdout_logger.info(f"Skip experiment {experiment_idx + 1} of {total_experiments}: {experiment_name}")
+                stdout_logger.info(f"Skip experiment {experiment_name} ({experiment_idx + 1}/{total_experiments})")
                 continue
-            stdout_logger.info(f"Run experiment {experiment_idx + 1} of {total_experiments}: {experiment_name}")
-            # Determine dialogue partners: How often to run the experiment with different partners
-            dialogue_partners: List[List[backends.Model]] = []
+            stdout_logger.info(f"Run experiment {experiment_name} ({experiment_idx + 1}/{total_experiments})")
 
-            if player_models:  # favor runtime argument over experiment config
-                dialogue_partners = [list([m for m in player_models])]  # shallow copy
-            elif "dialogue_partners" in experiment:  # edge-case when names are given in experiment config
-                for dialogue_pair_names in experiment["dialogue_partners"]:
-                    player_models = []
-                    for model_name in dialogue_pair_names:
-                        player_model = backends.get_model_for(model_name)
-                        player_models.append(player_model)
-                    dialogue_partners.append(player_models)
-                module_logger.info(f"{self.game_name}: Detected 'dialogue_partners' in experiment config. "
-                                   f"Will run with: {dialogue_partners}")
+            experiment_config = {k: experiment[k] for k in experiment if k != 'game_instances'}
+            experiment_config["timestamp"] = datetime.now().isoformat()
+            experiment_config["game_name"] = self.game_name
+            experiment_config["experiment_name"] = experiment_name
+            experiment_config["player_models"] = player_models_infos
 
-            if not dialogue_partners:
-                message = (f"{self.game_name}: Neither 'dialogue_partners' set in experiment instance"
-                           f" nor 'models' given as run arg")
-                stdout_logger.error(message)
-                raise ValueError(message)
+            experiment_record_dir = f"{experiment_idx}_{experiment_name}"
+            store_results_file(self.game_name, experiment_config,
+                               f"experiment.json",
+                               player_models_folder,
+                               sub_dir=experiment_record_dir,
+                               results_dir=results_root)
 
-            for dialogue_pair in dialogue_partners:
-                dialogue_pair_desc = self.get_dialogue_pair_descriptor(dialogue_pair)
-                episode_counter = 0
-
-                module_logger.info("Activity: %s Experiment: %s Partners: %s Episode: %d",
-                                   self.game_name, experiment_name, dialogue_pair_desc, episode_counter)
-
-                experiment_record_dir = f"{experiment_idx}_{experiment_name}"
-                experiment_config = {k: experiment[k] for k in experiment if k != 'game_instances'}
-
-                # Add some important infos to track
-                experiment_config["timestamp"] = datetime.now().isoformat()
-                experiment_config["dialogue_partners"] = dialogue_pair_desc
-
-                store_results_file(self.game_name, experiment_config,
-                                   f"experiment.json",
-                                   dialogue_pair_desc,
-                                   sub_dir=experiment_record_dir,
+            episode_counter = 0
+            error_count = 0
+            time_experiment_start = datetime.now()
+            tasks: List[Dict] = experiment["game_instances"]  # by default run all
+            if task_selector is not None:
+                task_ids = task_selector(self.game_name, experiment_name)
+                stdout_logger.info("Sub-select only instances with game_ids: %s", task_ids)
+                tasks = [t for t in tasks if t["game_id"] in task_ids]
+            module_logger.info("Activity: %s Experiment: %s Partners: %s Tasks: %d",
+                               self.game_name, experiment_name, player_models_folder, len(tasks))
+            for task in tqdm(tasks, desc="Playing games"):
+                task_id = task["game_id"]
+                module_logger.info("Activity: %s Experiment: %s Episode: %d Game: %s",
+                                   self.game_name, experiment_name, episode_counter, task_id)
+                episode_dir = experiment_record_dir + f"/episode_{episode_counter}"
+                store_results_file(self.game_name, task,
+                                   f"instance.json",
+                                   player_models_folder,
+                                   sub_dir=episode_dir,
                                    results_dir=results_root)
-
-                error_count = 0
-                time_experiment_start = datetime.now()
-                game_instances: List = experiment["game_instances"]
-                for game_instance in tqdm(game_instances, desc="Playing games"):
-                    game_id = game_instance["game_id"]
-                    module_logger.info("Activity: %s Experiment: %s Episode: %d Game: %s",
-                                       self.game_name, experiment_name, episode_counter, game_id)
-                    episode_dir = experiment_record_dir + f"/episode_{episode_counter}"
-                    store_results_file(self.game_name, game_instance,
-                                       f"instance.json",
-                                       dialogue_pair_desc,
-                                       sub_dir=episode_dir,
-                                       results_dir=results_root)
-                    game_recorder = DefaultGameRecorder(self.game_name,
-                                                        experiment_config["name"],  # meta info for transcribe
-                                                        game_instance["game_id"],  # meta info for transcribe
-                                                        dialogue_pair_desc)  # meta info for transcribe
-                    try:
-                        game_master = self.create_game_master(experiment_config, dialogue_pair)
-                        game_master.game_recorder = game_recorder
-                        game_master.setup(**game_instance)
-                        game_master.play()
-                        game_master.store_records(results_root, dialogue_pair_desc, episode_dir)
-                    except Exception:  # continue with other episodes if something goes wrong
-                        module_logger.exception(f"{self.game_name}: Exception for episode {game_id} (but continue)")
-                        error_count += 1
-                    episode_counter += 1
-                if error_count > 0:
-                    stdout_logger.error(
-                        f"{self.game_name}: '{error_count}' exceptions occurred: See clembench.log for details.")
-                # Add experiment duration and overwrite file
-                time_experiment_end = datetime.now() - time_experiment_start
-                experiment_config["duration"] = str(time_experiment_end)
-                store_results_file(self.game_name, experiment_config,
-                                   f"experiment.json",
-                                   dialogue_pair_desc,
-                                   sub_dir=experiment_record_dir,
-                                   results_dir=results_root)
-
-    def get_dialogue_pair_descriptor(self, dialogue_pair: List[backends.Model]):
-        if self.is_single_player:
-            if len(dialogue_pair) > 1:
-                message = f"Too many player for singe-player game '{self.game_name}': '{len(dialogue_pair)}'"
-                stdout_logger.error(message)
-                raise ValueError(message)
-            model_0 = dialogue_pair[0]
-            model_0 = f"{model_0.get_name()}-t{model_0.get_temperature()}"
-            # still we store to model--model dir (virtual self-play)
-            dialogue_pair_desc = f"{model_0}--{model_0}"
-        else:  # 2-players
-            if len(dialogue_pair) > 2:
-                message = f"Too many player for two-player game '{self.game_name}': '{len(dialogue_pair)}'"
-                stdout_logger.error(message)
-                raise ValueError(message)
-            if len(dialogue_pair) == 1:
-                dialogue_pair.append(dialogue_pair[0])  # model expansion
-            model_0 = dialogue_pair[0]
-            model_0 = f"{model_0.get_name()}-t{model_0.get_temperature()}"
-            model_1 = dialogue_pair[1]
-            model_1 = f"{model_1.get_name()}-t{model_1.get_temperature()}"
-            dialogue_pair_desc = f"{model_0}--{model_1}"
-        return dialogue_pair_desc
+                game_recorder = DefaultGameRecorder(self.game_name,
+                                                    experiment_config["name"],  # meta info for transcribe
+                                                    task_id,  # meta info for transcribe
+                                                    player_models_folder,  # meta info for transcribe
+                                                    player_models_infos)
+                try:
+                    game_master = self.create_game_master(experiment_config, player_models)
+                    game_master.game_recorder = game_recorder
+                    game_master.setup(**task)
+                    game_master.play()
+                    game_master.store_records(results_root, player_models_folder, episode_dir)
+                except Exception:  # continue with other episodes if something goes wrong
+                    module_logger.exception(f"{self.game_name}: Exception for episode {task_id} (but continue)")
+                    error_count += 1
+                episode_counter += 1
+            if error_count > 0:
+                stdout_logger.error(
+                    f"{self.game_name}: '{error_count}' exceptions occurred: See clembench.log for details.")
+            # Add experiment duration and overwrite file
+            time_experiment_end = datetime.now() - time_experiment_start
+            experiment_config["duration"] = str(time_experiment_end)
+            store_results_file(self.game_name, experiment_config,
+                               f"experiment.json",
+                               player_models_folder,
+                               sub_dir=experiment_record_dir,
+                               results_dir=results_root)
 
     def create_game_master(self, experiment: Dict, player_models: List[backends.Model]) -> GameMaster:
         """Create a game-specific GameMaster subclass instance to run the game with.
@@ -307,13 +285,13 @@ def is_game_benchmark(obj):
 
 
 @contextmanager
-def load_from_spec(game_spec: GameSpec, do_setup: bool = True, instances_name: str = None) \
+def load_from_spec(game_spec: GameSpec, do_setup: bool = True, instances_filename: str = None) \
         -> ContextManager[GameBenchmark]:
     """Load a clemgame using a GameSpec.
     Args:
         game_spec: A GameSpec instance holding specific clemgame data.
         do_setup: Determines if the clemgame's setup method will be executed upon loading.
-        instances_name: The name of the instances file to be used for the clemgame's setup if do_setup is True.
+        instances_filename: The name of the instances file to be used for the clemgame's setup if do_setup is True.
     """
     stdout_logger.info("Loading game benchmark for %s", game_spec.game_name)
     # add parent directory to python path if matching naming convention to load additional files if necessary
@@ -358,7 +336,7 @@ def load_from_spec(game_spec: GameSpec, do_setup: bool = True, instances_name: s
         game_cls = game_class(game_spec)  # instantiate the specific game class
 
         if do_setup:
-            game_cls.setup(instances_name)
+            game_cls.setup(instances_filename)
 
         yield game_cls
     finally:

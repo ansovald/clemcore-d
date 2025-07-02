@@ -1,14 +1,69 @@
 import abc
 import collections
-import logging
 from copy import deepcopy
 from pathlib import Path
-from typing import List, Dict, Tuple, Any, Union
+from typing import List, Dict, Tuple, Any, Union, Optional
 
 from clemcore import backends
 from clemcore.clemgame import GameResourceLocator
+from clemcore.clemgame.registry import GameSpec
 from clemcore.clemgame.player import Player
 from clemcore.clemgame.recorder import NoopGameRecorder
+
+
+class ResponseError(Exception):
+    """
+    General error class for problems with the player response.
+
+    Developers can introduce more specific error types by subclassing this error.
+    Alternatively, the 'key' attribute can be used to define more granular error types.
+    """
+
+    def __init__(self, reason: Optional[str] = None, response: Optional[str] = None, key: Optional[str] = None):
+        """
+        :param reason: (optional) a brief description of the cause
+        :param response: (optional) the player's response
+        :param key: (optional) a key word
+        """
+        super().__init__(reason)
+        self.reason = reason
+        self.response = response
+        self.key = key
+
+    def __str__(self):
+        return f"{self.__class__.__name__}: {self.reason}"
+
+
+class GameError(ResponseError):
+    """Raised when a verbal action of a player causes problems for advancing the game."""
+    pass
+
+
+class RuleViolationError(GameError):
+    """Raised when a verbal action of a player violates the specified game rules.
+
+    For example:
+        - taboo: mentioning the target word as the clue giver
+        - wordle: guessing words that are not exactly 5 letters long
+    """
+    pass
+
+
+class ProtocolError(ResponseError):
+    """Raised when a message does not follow the communication protocol expected by the game master."""
+    pass
+
+
+class ParseError(ProtocolError):
+    """
+    This error is supposed to be raised when player messages cannot be parsed or understood by the game master e.g.
+    because the response does not start with a specified prefix.
+
+    For example:
+        - taboo: clue giver messages should start with 'CLUE:'
+        - wordle: guesser messages should start with 'GUESS:'
+    """
+    pass
 
 
 class GameMaster(abc.ABC):
@@ -23,21 +78,25 @@ class GameMaster(abc.ABC):
     - builds the interaction transcripts
     """
 
-    def __init__(self, name: str, path: str, experiment: Dict, player_models: List[backends.Model]):
+    def __init__(self, game_spec: GameSpec, experiment: Dict, player_models: List[backends.Model]):
         """
         Args:
-            name: The name of the game (as specified in game_registry).
-            path: Path to the game (as specified in game_registry).
+            game_spec: the game specifications for this game as given in the clemgame.json file
             experiment: The parameter of the experiment, that is, parameters that are the same for all game instances.
             player_models: Player models to use for one or two players.
-            game_recorder: Enables to log each interaction in the game.
-                           Resulting records can be stored to an interactions.json.
         """
-        self.game_name = name
+        self.game_spec = game_spec
         self.experiment: Dict = experiment
+        # Automatic player expansion: When only a single model is given, then use this model given for each game role.
+        if len(player_models) == 1 and game_spec.players > 1:
+            player_models = [player_models[0]] * game_spec.players  # keeps original list untouched
+        if len(player_models) != game_spec.players:
+            raise ValueError(f"{game_spec.game_name} requires {game_spec.players} players, "
+                             f"but {len(player_models)} were given: {[m.name for m in player_models]}")
         self.player_models: List[backends.Model] = player_models
         self._game_recorder = NoopGameRecorder()
-        self.game_resources = GameResourceLocator(name, path)  # could be obsolete, when all info is in the instances
+        # Note: Using GameResourceLocator could be obsolete, when all necessary info is in the instances file.
+        self.game_resources = GameResourceLocator(game_spec.game_name, game_spec.game_path)
 
     @property
     def game_recorder(self):
@@ -66,7 +125,7 @@ class GameMaster(abc.ABC):
         self._game_recorder.log_key(key, value)
 
     def log_player(self, player: Player):
-        self._game_recorder.log_player(player.name, player.game_role, player.model.get_name())
+        self._game_recorder.log_player(player.name, player.game_role, player.model.name)
 
     def log_next_round(self):
         self._game_recorder.log_next_round()
@@ -98,7 +157,7 @@ class DialogueGameMaster(GameMaster):
     Has most logging and gameplay procedures implemented, including convenient logging methods.
     """
 
-    def __init__(self, name: str, path: str, experiment: dict, player_models: List[backends.Model]):
+    def __init__(self, game_spec: GameSpec, experiment: dict, player_models: List[backends.Model]):
         """
         Args:
             name: The name of the game (as specified in game_registry).
@@ -106,7 +165,7 @@ class DialogueGameMaster(GameMaster):
             experiment: The experiment (set of instances) to use.
             player_models: Player models to use for one or two players.
         """
-        super().__init__(name, path, experiment, player_models)
+        super().__init__(game_spec, experiment, player_models)
         # the logging works with an internal mapping of "Player N" -> Player
         self.players_by_names: Dict[str, Player] = collections.OrderedDict()
         self.context_for_player: Dict[str, Dict] = dict()  # context entries look like {"role":"user", "content": ...}
@@ -251,15 +310,16 @@ class DialogueGameMaster(GameMaster):
 
         if self._should_pass_turn():
             self.current_player = self._next_player()
-            if self._start_next_round():
-                self._on_after_round()
-                self.current_round += 1
+
+        if self._start_next_round():
+            self._on_after_round()
+            self.current_round += 1  # already increment here b.c. _does_game_proceed might rely on it
 
         done = not self._does_game_proceed()
         if done:
             self._on_after_game()
             self.info["episode_score"] = self.compute_episode_score()
-        elif self._start_next_round():
+        elif self._start_next_round():  # prepare next round only when game has not ended yet
             self.__prepare_next_round()
 
         info = deepcopy(self.info)
