@@ -87,10 +87,11 @@ def load_config_and_tokenizer(model_spec: backends.ModelSpec) -> Tuple[PreTraine
                 f"while model has no pre-made template! Generic template will be used, likely leading to "
                 f"bad results.")
 
+    trust_remote_code = model_spec["model_config"].get("trust_remote_code", False)
     if use_api_key:
-        auto_config = AutoConfig.from_pretrained(hf_model_str, token=api_key)
+        auto_config = AutoConfig.from_pretrained(hf_model_str, token=api_key, trust_remote_code=trust_remote_code)
     else:
-        auto_config = AutoConfig.from_pretrained(hf_model_str)
+        auto_config = AutoConfig.from_pretrained(hf_model_str, trust_remote_code=trust_remote_code)
 
     # get context token limit for model:
     if hasattr(auto_config, 'max_position_embeddings'):  # this is the standard attribute used by most
@@ -147,9 +148,15 @@ def load_model(model_spec: backends.ModelSpec) -> Any:
         # load HF API key:
         creds = backends.load_credentials("huggingface")
         model_args["token"] = creds["huggingface"]["api_key"]
+    if "use_bf16" in model_spec.model_config:
+        if model_spec['model_config']['use_bf16']:
+            model_args["torch_dtype"] = torch.bfloat16
 
     hf_model_str = model_spec['huggingface_id']
-    model = AutoModelForCausalLM.from_pretrained(hf_model_str, **model_args)
+    if 'trust_remote_code' in model_spec.model_config:
+        model =  AutoModelForCausalLM.from_pretrained(hf_model_str, trust_remote_code=True, **model_args)  # Load the model using from_pretrained
+    else:
+        model = AutoModelForCausalLM.from_pretrained(hf_model_str, **model_args)
 
     if "peft_model" in model_spec.model_config:
         adapter_model = model_spec.model_config["peft_model"]  # can be a path or name
@@ -282,6 +289,14 @@ class HuggingfaceLocalModel(backends.BatchGenerativeModel):
                 tokenize=False,  # get back the rendered string
                 reasoning_effort=self.model_spec.model_config['cot_effort']  # use string from model config
             )
+        elif 'enable_thinking' in self.model_spec.model_config:
+            # Render each chat in the batch (list of messages) to a string prompt with generation prompt
+            rendered_chats = self.tokenizer.apply_chat_template(
+                batch_messages,
+                add_generation_prompt=True,  # append assistant prompt
+                tokenize=False,  # get back the rendered string
+                enable_thinking=self.model_spec.model_config['enable_thinking']  # use bool from model config
+            )
         else:
             # Render each chat in the batch (list of messages) to a string prompt with generation prompt
             rendered_chats = self.tokenizer.apply_chat_template(
@@ -289,7 +304,6 @@ class HuggingfaceLocalModel(backends.BatchGenerativeModel):
                 add_generation_prompt=True,  # append assistant prompt
                 tokenize=False  # get back the rendered string
             )
-
         # The rendered chat (with system message already removed before) will, for example, look like:
         # <|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nWho won the world series in 2020?<|eot_id|>
         # Followed by the added generation prompt: <|start_header_id|>assistant<|end_header_id|>\n\n
@@ -440,7 +454,7 @@ def split_and_clean_cot_output(response_text: str, model: HuggingfaceLocalModel)
                     f"cutting off excess tokens.")
         tokenized_answer = tokenized_answer[:model.max_tokens]
     # Decode retokenized and potentially cut answer
-    answer = model.tokenizer.decode(tokenized_answer)
+    answer = model.tokenizer.decode(tokenized_answer, skip_special_tokens=True)
     # Strip answer to assure proper clemgame parsing
     answer = answer.strip()
 

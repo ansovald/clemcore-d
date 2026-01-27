@@ -5135,6 +5135,27 @@
         }
     },
     {
+        "model_name": "EuroLLM-22B-Instruct-2512",
+        "huggingface_id": "utter-project/EuroLLM-22B-Instruct-2512",
+        "backend": "huggingface_local",
+        "release_date": "2025-12-12",
+        "open_weight": true,
+        "parameters": "22B",
+        "languages": [
+            "en"
+        ],
+        "context_size": "32K",
+        "license": {
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "model_config": {
+            "premade_chat_template": true,
+            "eos_to_cull": "<\\|im_end\\|>",
+            "padding_side": "left"
+        }
+    },
+    {
         "model_name": "Qwen3-30B-A3B",
         "huggingface_id": "Qwen/Qwen3-30B-A3B",
         "backend": "huggingface_local",
@@ -7053,6 +7074,152 @@
                 "use_flash_attn": true,
                 "device_map": "clemcore.backends.multimodal_utils.split_internvl3_model"
             }
+        }
+    },
+    {
+        "model_name": "Olmo-3-7B-Think",
+        "huggingface_id": "allenai/Olmo-3-7B-Think",
+        "backend": "huggingface_local",
+        "release_date": "2025-10-09",
+        "open_weight": true,
+        "parameters": "7B",
+        "languages": [
+            "en"
+        ],
+        "context_size": "65536",
+        "license": {
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "model_config": {
+            "premade_chat_template": true,
+            "padding_side": "right",
+            "eos_to_cull": "<\\|endoftext\\|>",
+            "enable_thinking": true,
+            "cot_output": true,
+            "cot_start_tag": "<think>",
+            "cot_end_tag": "</think>"
+        }
+    },
+    {
+        "model_name": "Olmo-3-32B-Think",
+        "huggingface_id": "allenai/Olmo-3-7B-Think",
+        "backend": "huggingface_local",
+        "release_date": "2025-10-09",
+        "open_weight": true,
+        "parameters": "7B",
+        "languages": [
+            "en"
+        ],
+        "context_size": "65536",
+        "license": {
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "model_config": {
+            "premade_chat_template": true,
+            "padding_side": "right",
+            "eos_to_cull": "<\\|endoftext\\|>",
+            "enable_thinking": true,
+            "cot_output": true,
+            "cot_start_tag": "<think>",
+            "cot_end_tag": "</think>"
+        }
+    },
+    {
+        "model_name": "Olmo-3.1-32B-Instruct",
+        "huggingface_id": "allenai/Olmo-3.1-32B-Instruct",
+        "backend": "huggingface_local",
+        "release_date": "2025-10-09",
+        "open_weight": true,
+        "parameters": "32B",
+        "languages": [
+            "en"
+        ],
+        "context_size": "65536",
+        "license": {
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "model_config": {
+            "premade_chat_template": true,
+            "padding_side": "right",
+            "eos_to_cull": "<\\|endoftext\\|>"
+        }
+    },
+    {
+        "model_name": "K2-V2-Instruct-reasoning-low",
+        "huggingface_id": "LLM360/K2-V2-Instruct",
+        "backend": "huggingface_local",
+        "release_date": "2025-12-03",
+        "open_weight": true,
+        "parameters": "70B",
+        "languages": [
+            "en"
+        ],
+        "context_size": "524288",
+        "license": {
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "model_config": {
+            "premade_chat_template": true,
+            "padding_side": "right",
+            "eos_to_cull": "<\\|im_end\\|>",
+            "cot_output": true,
+            "cot_effort": "low",
+            "cot_start_tag": "<think_faster>",
+            "cot_end_tag": "</think_faster>"
+        }
+    },
+    {
+        "model_name": "K2-V2-Instruct-reasoning-mid",
+        "huggingface_id": "LLM360/K2-V2-Instruct",
+        "backend": "huggingface_local",
+        "release_date": "2025-12-03",
+        "open_weight": true,
+        "parameters": "70B",
+        "languages": [
+            "en"
+        ],
+        "context_size": "524288",
+        "license": {
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "model_config": {
+            "premade_chat_template": true,
+            "padding_side": "right",
+            "eos_to_cull": "<\\|im_end\\|>",
+            "cot_output": true,
+            "cot_effort": "mid",
+            "cot_start_tag": "<think_fast>",
+            "cot_end_tag": "</think_fast>"
+        }
+    },
+    {
+        "model_name": "K2-V2-Instruct-reasoning-high",
+        "huggingface_id": "LLM360/K2-V2-Instruct",
+        "backend": "huggingface_local",
+        "release_date": "2025-12-03",
+        "open_weight": true,
+        "parameters": "70B",
+        "languages": [
+            "en"
+        ],
+        "context_size": "524288",
+        "license": {
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "model_config": {
+            "premade_chat_template": true,
+            "padding_side": "right",
+            "eos_to_cull": "<\\|im_end\\|>",
+            "cot_output": true,
+            "cot_effort": "high",
+            "cot_start_tag": "<think>",
+            "cot_end_tag": "</think>"
         }
     }
 ]
