@@ -135,7 +135,9 @@ def run(game_selector: Union[str, Dict, GameSpec],
     for unified_model_spec in unified_model_specs:
         logger.info(f"Dynamically import backend {unified_model_spec.backend}")
         backend = backend_registry.get_backend_for(unified_model_spec.backend)
+        logger.info(f"Start loading model {unified_model_spec.model_name} using backend {unified_model_spec.backend}")
         model = backend.get_model_for(unified_model_spec)
+        logger.info(f"Setting generation args for model {unified_model_spec.model_name}: {gen_args}")
         model.set_gen_args(**gen_args)  # todo make this somehow available in generate method?
         logger.info(f"Successfully loaded {unified_model_spec.model_name} model")
         player_models.append(model)

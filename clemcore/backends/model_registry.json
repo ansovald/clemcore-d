@@ -7093,7 +7093,7 @@
         },
         "model_config": {
             "premade_chat_template": true,
-            "padding_side": "right",
+            "padding_side": "left",
             "eos_to_cull": "<\\|endoftext\\|>",
             "enable_thinking": true,
             "cot_output": true,
@@ -7107,7 +7107,7 @@
         "backend": "huggingface_local",
         "release_date": "2025-10-09",
         "open_weight": true,
-        "parameters": "7B",
+        "parameters": "32B",
         "languages": [
             "en"
         ],
@@ -7118,7 +7118,7 @@
         },
         "model_config": {
             "premade_chat_template": true,
-            "padding_side": "right",
+            "padding_side": "left",
             "eos_to_cull": "<\\|endoftext\\|>",
             "enable_thinking": true,
             "cot_output": true,
@@ -7143,7 +7143,7 @@
         },
         "model_config": {
             "premade_chat_template": true,
-            "padding_side": "right",
+            "padding_side": "left",
             "eos_to_cull": "<\\|endoftext\\|>"
         }
     },
@@ -7220,6 +7220,102 @@
             "cot_effort": "high",
             "cot_start_tag": "<think>",
             "cot_end_tag": "</think>"
+        }
+    },
+    {
+        "model_name": "Ministral-3-3B-Reasoning-2512",
+        "backend": "mistral_local",
+        "huggingface_id": "mistralai/Ministral-3-3B-Reasoning-2512",
+        "release_date": "2025-12-02",
+        "open_weight": true,
+        "parameters": "3B",
+        "languages": [
+            "en"
+        ],
+        "context_size": "256k",
+        "license": {
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "model_config": {
+            "premade_chat_template": true,
+            "mistral_tokenizer": true,
+            "eos_to_cull": "</s>",
+            "padding_side": "left",
+            "thinking": true,
+            "cot_start_tag": "\\[THINK\\]",
+            "cot_end_tag": "\\[/THINK\\]"
+        }
+    },
+    {
+        "model_name": "Ministral-3-3B-Reasoning-2512-nothink",
+        "backend": "mistral_local",
+        "huggingface_id": "mistralai/Ministral-3-3B-Reasoning-2512",
+        "release_date": "2025-12-02",
+        "open_weight": true,
+        "parameters": "3B",
+        "languages": [
+            "en"
+        ],
+        "context_size": "256k",
+        "license": {
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "model_config": {
+            "premade_chat_template": true,
+            "mistral_tokenizer": true,
+            "eos_to_cull": "</s>",
+            "padding_side": "left",
+            "thinking": false
+        }
+    },
+    {
+        "model_name": "Ministral-3-14B-Reasoning-2512",
+        "backend": "mistral_local",
+        "huggingface_id": "mistralai/Ministral-3-14B-Reasoning-2512",
+        "release_date": "2025-12-02",
+        "open_weight": true,
+        "parameters": "14B",
+        "languages": [
+            "en"
+        ],
+        "context_size": "256k",
+        "license": {
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "model_config": {
+            "premade_chat_template": true,
+            "mistral_tokenizer": true,
+            "eos_to_cull": "</s>",
+            "padding_side": "left",
+            "thinking": true,
+            "cot_start_tag": "\\[THINK\\]",
+            "cot_end_tag": "\\[/THINK\\]"
+        }
+    },
+    {
+        "model_name": "Ministral-3-14B-Reasoning-2512-nothink",
+        "backend": "mistral_local",
+        "huggingface_id": "mistralai/Ministral-3-14B-Reasoning-2512",
+        "release_date": "2025-12-02",
+        "open_weight": true,
+        "parameters": "14B",
+        "languages": [
+            "en"
+        ],
+        "context_size": "256k",
+        "license": {
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "model_config": {
+            "premade_chat_template": true,
+            "mistral_tokenizer": true,
+            "eos_to_cull": "</s>",
+            "padding_side": "left",
+            "thinking": false
         }
     }
 ]

@@ -44,7 +44,7 @@ def load_config_and_tokenizer(model_spec: backends.ModelSpec) -> Tuple[PreTraine
             logger.info(requires_api_key_info)
 
     hf_model_str = model_spec['huggingface_id']
-
+    
     # use 'slow' tokenizer for models that require it:
     if 'slow_tokenizer' in model_spec.model_config:
         if model_spec['model_config']['slow_tokenizer']:
@@ -98,6 +98,8 @@ def load_config_and_tokenizer(model_spec: backends.ModelSpec) -> Tuple[PreTraine
         context_size = auto_config.max_position_embeddings
     elif hasattr(auto_config, 'n_positions'):  # some models may have their context size under this attribute
         context_size = auto_config.n_positions
+    elif hasattr(auto_config, 'text_config') and hasattr(auto_config.text_config, 'max_position_embeddings'): # some models (e.g., Mistral) have nested configs
+        context_size = auto_config.text_config.max_position_embeddings
     else:  # few models, especially older ones, might not have their context size in the config
         context_size = FALLBACK_CONTEXT_SIZE
 
@@ -164,7 +166,10 @@ def load_model(model_spec: backends.ModelSpec) -> Any:
         model = PeftModel.from_pretrained(model, adapter_model)
 
     logger.info(f"Finished loading huggingface model: {model_spec.model_name}")
-    logger.info(f"Model device map: {model.hf_device_map}")
+    try:
+        logger.info(f"Model device map: {model.hf_device_map}")
+    except AttributeError:
+        pass  # model has no hf_device_map attribute
 
     return model
 

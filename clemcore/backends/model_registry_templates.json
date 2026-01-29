@@ -1,0 +1,118 @@
+[
+    {
+        "model_name": "Ministral-3-3B-Reasoning-2512",
+        "backend": "huggingface_local",
+        "huggingface_id": "mistralai/Ministral-3-14B-Reasoning-2512",
+        "release_date": "2025-12-02",
+        "open_weight": true,
+        "parameters": "3B",
+        "languages": [
+            "en"
+        ],
+        "context_size": "256k",
+        "license": {
+            "name": "Apache 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+        },
+        "model_config": {
+            "premade_chat_template": true,
+            "eos_to_cull": "</s>"
+        }
+    },
+    {
+        "model_name": "NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+        "backend": "huggingface_local",
+        "huggingface_id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+        "release_date": "2025-12-15",
+        "open_weight": true,
+        "parameters": "30B",
+        "languages": [
+            "en",
+            "de",
+            "es",
+            "fr",
+            "it",
+            "ja"
+        ],
+        "context_size": "1M",
+        "license": {
+            "name": "NVIDIA Open Model License",
+            "url": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/"
+        },
+        "model_config": {
+            "model_class": "transformers.AutoModelForCausalLM",
+            "processor_class": "transformers.AutoTokenizer",
+            "trust_remote_code": true,
+            "use_bf16": true,
+            "premade_chat_template": true,
+            "eos_to_cull": "<\\|im_end\\|>",
+            "padding_side": "right",
+            "enable_thinking": true,
+            "cot_output": true,
+            "cot_start_tag": "<think>",
+            "cot_end_tag": "</think>"
+        }
+    },
+    {
+        "model_name": "NVIDIA-Nemotron-3-Nano-30B-A3B-BF16-nothink",
+        "backend": "huggingface_local",
+        "huggingface_id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+        "release_date": "2025-12-15",
+        "open_weight": true,
+        "parameters": "30B",
+        "languages": [
+            "en",
+            "de",
+            "es",
+            "fr",
+            "it",
+            "ja"
+        ],
+        "context_size": "1M",
+        "license": {
+            "name": "NVIDIA Open Model License",
+            "url": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/"
+        },
+        "model_config": {
+            "model_class": "transformers.AutoModelForCausalLM",
+            "processor_class": "transformers.AutoTokenizer",
+            "trust_remote_code": true,
+            "use_bf16": true,
+            "premade_chat_template": true,
+            "eos_to_cull": "<\\|im_end\\|>",
+            "padding_side": "right",
+            "enable_thinking": false
+        }
+    },
+    {
+        "model_name": "NVIDIA-Nemotron-3-Nano-30B-A3B-BF16-VLLM",
+        "backend": "vllm",
+        "huggingface_id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+        "release_date": "2025-12-15",
+        "open_weight": true,
+        "parameters": "30B",
+        "languages": [
+            "en",
+            "de",
+            "es",
+            "fr",
+            "it",
+            "ja"
+        ],
+        "context_size": "1M",
+        "license": {
+            "name": "NVIDIA Open Model License",
+            "url": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/"
+        },
+        "model_config": {
+            "number_gpus": 1,
+            "premade_chat_template": true,
+            "eos_to_cull": "<\\|im_end\\|>",
+            "padding_side": "right",
+            "enable_thinking": true,
+            "cot_output": true,
+            "cot_start_tag": "<think>",
+            "cot_end_tag": "</think>"
+        }
+    }
+]

@@ -18,7 +18,7 @@ loggers:
   "clemcore.cli":
     handlers: [ console ]
   "clemcore.backends":
-    level: WARNING
+    level: INFO
     handlers: [ console ]
   "clemcore.clemgame":
     level: WARNING
